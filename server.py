@@ -5,94 +5,59 @@ import threading
 HOST = "0.0.0.0"
 PORT = 7070
 
-clients = {}
-lock = threading.Lock()
+clients = {}  # socket -> username
 
 
-def broadcast(msg):
-    """Send message to all connected clients."""
-    with lock:
-        disconnected = []
-        for client in list(clients.keys()):
+def broadcast(msg, sender_sock=None):
+    """Send message to all clients except the sender."""
+    for client in list(clients.keys()):
+        if client is not sender_sock:
             try:
-                client.sendall(msg.encode("utf-8"))
-            except:
-                disconnected.append(client)
-
-        for client in disconnected:
-            try:
+                client.sendall(msg)
+            except Exception:
                 client.close()
-            except:
-                pass
-            clients.pop(client, None)
+                del clients[client]
 
 
-def handle_client(sock, addr):
-    """Handle communication with a single client."""
-    username = None
+def handle_client(conn, addr):
+    """Handle messages from a single client."""
     try:
-        username = sock.recv(1024).decode("utf-8").strip()
-        if not username:
-            sock.close()
-            return
-
-        with lock:
-            clients[sock] = username
+        username = conn.recv(1024).decode().strip()
+        clients[conn] = username
         print(f"[+] {username} joined from {addr}")
+        broadcast(f"{username} joined the chat!".encode(), conn)
 
-        # Listen for messages
         while True:
-            data = sock.recv(4096)
+            data = conn.recv(4096)
             if not data:
                 break
-            text = data.decode("utf-8").strip()
-            if text:
-                full_msg = f"{username}: {text}\n"
-                broadcast(full_msg)
+            broadcast(data, conn)
 
-    except ConnectionResetError:
-        pass
     except Exception as e:
         print(f"[!] Error with {addr}: {e}")
     finally:
-        with lock:
-            if sock in clients:
-                left_user = clients.pop(sock)
-                print(f"[-] {left_user} disconnected from {addr}")
-        try:
-            sock.close()
-        except:
-            pass
+        user = clients.get(conn, "Unknown")
+        print(f"[-] {user} disconnected")
+        broadcast(f"{user} left the chat.".encode(), conn)
+        if conn in clients:
+            del clients[conn]
+        conn.close()
 
 
 def main():
-    """Main server loop."""
+    print(f"Server started on {HOST}:{PORT}")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
-    server.listen(10)
-    print(f"[SERVER] Listening on {HOST}:{PORT}")
-
-    threads = []
+    server.listen()
 
     try:
         while True:
-            sock, addr = server.accept()
-            thread = threading.Thread(target=handle_client, args=(sock, addr), daemon=True)
-            thread.start()
-            threads.append(thread)
+            conn, addr = server.accept()
+            threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
     except KeyboardInterrupt:
-        print("\n[SERVER] Shutting down gracefully...")
+        print("\nServer shutting down...")
     finally:
-        with lock:
-            for client in list(clients.keys()):
-                try:
-                    client.close()
-                except:
-                    pass
-            clients.clear()
         server.close()
-        print("[SERVER] Closed all connections.")
 
 
 if __name__ == "__main__":
