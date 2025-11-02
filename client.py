@@ -5,7 +5,6 @@ import sys
 import speech_recognition as sr
 from speech_recognition import AudioData
 import sounddevice as sd
-import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLineEdit, QPushButton,
