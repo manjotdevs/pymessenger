@@ -2,6 +2,10 @@
 import socket
 import threading
 import sys
+import speech_recognition as sr
+from speech_recognition import AudioData
+import sounddevice as sd
+import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLineEdit, QPushButton,
@@ -10,7 +14,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 
 SERVER_PORT = 7070
-
 
 # Thread for receiving messages
 class ReceiverThread(QThread):
@@ -39,7 +42,7 @@ class ReceiverThread(QThread):
             pass
 
 
-class ChatClient(QWidget):
+class PYMsgClient(QWidget):
     def __init__(self):
         super().__init__()
         self.sock = None
@@ -47,6 +50,7 @@ class ChatClient(QWidget):
         self.username = None
         self.dark_mode = True
         self.colors = {}
+        self.recognizer = sr.Recognizer()
 
         # --- Initialize UI ---
         self.setup_ui()
@@ -95,10 +99,17 @@ class ChatClient(QWidget):
         self.msg_entry.setFont(QFont("Segoe UI", 14))
         self.msg_entry.returnPressed.connect(self.send_message)
 
+        # 🎤 Voice Input Button
+        self.voice_btn = QPushButton("🎤")
+        self.voice_btn.setFont(QFont("Segoe UI", 14))
+        self.voice_btn.setFixedWidth(60)
+        self.voice_btn.clicked.connect(self.voice_to_text)
+
         self.send_btn = QPushButton("Send")
         self.send_btn.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         self.send_btn.clicked.connect(self.send_message)
 
+        input_layout.addWidget(self.voice_btn)
         input_layout.addWidget(self.msg_entry)
         input_layout.addWidget(self.send_btn)
         self.main_layout.addLayout(input_layout)
@@ -152,12 +163,12 @@ class ChatClient(QWidget):
 
     # ---------- CONNECTION ----------
     def connect_to_server(self):
-        host, ok = QInputDialog.getText(self, "Server IP", "Enter server IP (e.g. 127.0.0.1):")
+        host, ok = QInputDialog.getText(self, "Server IP", "Enter server IP")
         if not ok or not host.strip():
             QMessageBox.warning(self, "Error", "Server IP is required.")
             return
 
-        username, ok = QInputDialog.getText(self, "Username", "Enter your username:")
+        username, ok = QInputDialog.getText(self, "Username", "Enter your username")
         if not ok or not username.strip():
             QMessageBox.warning(self, "Error", "Username is required.")
             return
@@ -178,10 +189,8 @@ class ChatClient(QWidget):
 
     # ---------- MESSAGE DISPLAY ----------
     def create_message_bubble(self, sender, text):
-        """Creates a message bubble aligned by sender type."""
         msg_container = QHBoxLayout()
         msg_container.setContentsMargins(5, 5, 5, 5)
-
         is_self = sender == self.username
 
         avatar_label = QLabel()
@@ -218,7 +227,6 @@ class ChatClient(QWidget):
         return msg_frame
 
     def display_message(self, msg):
-        """Display incoming messages in chat area."""
         if ": " in msg:
             sender, text = msg.split(": ", 1)
         else:
@@ -239,8 +247,24 @@ class ChatClient(QWidget):
         except Exception:
             QMessageBox.warning(self, "Error", "Disconnected from server.")
             return
-        self.display_message(msg)
+        # Removed: self.display_message(msg)  # No longer display locally; wait for server echo
         self.msg_entry.clear()
+
+    # ---------- VOICE INPUT ----------
+    def voice_to_text(self):
+        try:
+            QMessageBox.information(self, "Listening", "Speak now...")
+            # Record audio using sounddevice
+            fs = 44100  # Sample rate
+            duration = 5  # seconds
+            audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
+            sd.wait()  # Wait until recording is finished
+            # Convert to AudioData for speech_recognition
+            audio = AudioData(audio_data.tobytes(), fs, 2)  # 2 bytes per sample for int16
+            text = self.recognizer.recognize_google(audio)
+            self.msg_entry.setText(text)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Voice input failed:\n{e}")
 
     # ---------- CLOSE ----------
     def closeEvent(self, event):
@@ -256,5 +280,5 @@ class ChatClient(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = ChatClient()
+    win = PYMsgClient()
     sys.exit(app.exec())
