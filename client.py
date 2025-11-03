@@ -54,16 +54,13 @@ class PYMsgClient(QWidget):
         # --- Initialize UI ---
         self.setup_ui()
         self.apply_theme()
-
-        # --- Show GUI before connecting ---
         self.show()
         QApplication.processEvents()
-
         self.connect_to_server()
 
     # ---------- UI SETUP ----------
     def setup_ui(self):
-        self.setWindowTitle("PyQt Messenger")
+        self.setWindowTitle("PYMessenger")
         self.setGeometry(400, 100, 600, 700)
 
         self.main_layout = QVBoxLayout(self)
@@ -72,7 +69,7 @@ class PYMsgClient(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        self.title = QLabel("Messenger")
+        self.title = QLabel("PYMessenger")
         self.title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
         self.toggle_btn = QPushButton("🌙")
         self.toggle_btn.setFixedWidth(60)
@@ -98,7 +95,7 @@ class PYMsgClient(QWidget):
         self.msg_entry.setFont(QFont("Segoe UI", 14))
         self.msg_entry.returnPressed.connect(self.send_message)
 
-        # 🎤 Voice Input Button
+        # Voice Input Button
         self.voice_btn = QPushButton("🎤")
         self.voice_btn.setFont(QFont("Segoe UI", 14))
         self.voice_btn.setFixedWidth(60)
@@ -243,23 +240,22 @@ class PYMsgClient(QWidget):
         msg = f"{self.username}: {text}"
         try:
             self.sock.sendall(msg.encode())
+            # Show sent message instantly
+            self.display_message(msg)
         except Exception:
             QMessageBox.warning(self, "Error", "Disconnected from server.")
             return
-        # Removed: self.display_message(msg)  # No longer display locally; wait for server echo
         self.msg_entry.clear()
 
     # ---------- VOICE INPUT ----------
     def voice_to_text(self):
         try:
-            QMessageBox.information(self, "Listening", "Speak now...")
-            # Record audio using sounddevice
-            fs = 44100  # Sample rate
-            duration = 5  # seconds
+            QMessageBox.information(self, "Listening", "Speak now...    ")
+            fs = 44100 
+            duration = 6  # seconds mic will listen
             audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-            sd.wait()  # Wait until recording is finished
-            # Convert to AudioData for speech_recognition
-            audio = AudioData(audio_data.tobytes(), fs, 2)  # 2 bytes per sample for int16
+            sd.wait()
+            audio = AudioData(audio_data.tobytes(), fs, 2)
             text = self.recognizer.recognize_google(audio)
             self.msg_entry.setText(text)
         except Exception as e:

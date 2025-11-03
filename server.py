@@ -5,7 +5,7 @@ import threading
 HOST = "0.0.0.0"
 PORT = 7070
 
-clients = {}  # socket -> username
+clients = {}  
 
 
 def broadcast(msg, sender_sock=None):
